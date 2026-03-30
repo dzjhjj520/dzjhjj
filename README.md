@@ -1,8 +1,0 @@
-COMMENT=$(echo "$RESPONSE" | jq -r '
-  if .choices then
-    .choices[0].message.content // .choices[0].message.reasoning_content // "AI没有返回内容"
-  else
-    "❌ AI调用失败"
-  end
-')# dzjhjj
-机器人2
