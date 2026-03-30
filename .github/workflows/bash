@@ -1,3 +1,0 @@
-echo "==== RESPONSE BEGIN ===="
-echo "$RESPONSE"
-echo "==== RESPONSE END ===="
