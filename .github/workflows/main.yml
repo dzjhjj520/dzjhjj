@@ -1,4 +1,4 @@
-name: Auto Reply Bot
+name: AI Reply Bot
 
 on:
   issues:
@@ -12,15 +12,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Reply to Issue
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const issue = context.issue;
+      - name: AI Reply
+        run: |
+          RESPONSE=$(curl https://api.openai.com/v1/chat/completions \
+            -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "gpt-4o-mini",
+              "messages": [
+                {
+                  "role": "system",
+                  "content": "你是一个专业的GitHub助手，简洁、专业地回答问题。"
+                },
+                {
+                  "role": "user",
+                  "content": "${{ github.event.issue.title }}\n${{ github.event.issue.body }}"
+                }
+              ]
+            }')
 
-            await github.rest.issues.createComment({
-              owner: issue.owner,
-              repo: issue.repo,
-              issue_number: issue.number,
-              body: "🤖 自动回复：我已经收到你的 Issue，会尽快处理！"
-            });
+          COMMENT=$(echo $RESPONSE | jq -r '.choices[0].message.content')
+
+          curl -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments \
+            -d "{\"body\": \"$COMMENT\"}"
