@@ -1,2 +1,43 @@
+name: AI Reply Bot (Free)
+
+on:
+  issues:
+    types: [opened]
+
 permissions:
   issues: write
+
+jobs:
+  reply:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install jq
+        run: sudo apt-get install jq
+
+      - name: AI Reply (DeepSeek)
+        run: |
+          RESPONSE=$(curl https://api.deepseek.com/v1/chat/completions \
+            -H "Authorization: Bearer ${{ secrets.DEEPSEEK_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "deepseek-chat",
+              "messages": [
+                {
+                  "role": "system",
+                  "content": "你是一个专业的GitHub助手，回答简洁清晰。"
+                },
+                {
+                  "role": "user",
+                  "content": "${{ github.event.issue.title }}\n${{ github.event.issue.body }}"
+                }
+              ]
+            }')
+
+          COMMENT=$(echo $RESPONSE | jq -r '.choices[0].message.content')
+
+          curl -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments \
+            -d "{\"body\": \"$COMMENT\"}"
