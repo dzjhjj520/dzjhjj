@@ -1,0 +1,3 @@
+echo "===== RAW RESPONSE ====="
+echo "$RESPONSE"
+echo "========================"
