@@ -1,4 +1,4 @@
-name: AI Reply Bot (Free)
+name: AI Reply Bot (Fixed)
 
 on:
   issues:
@@ -34,7 +34,15 @@ jobs:
               ]
             }')
 
-          COMMENT=$(echo $RESPONSE | jq -r '.choices[0].message.content')
+          echo "==== RAW RESPONSE ===="
+          echo "$RESPONSE"
+          echo "======================"
+
+          COMMENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "AI无回复"')
+
+          echo "==== COMMENT ===="
+          echo "$COMMENT"
+          echo "================="
 
           curl -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \
