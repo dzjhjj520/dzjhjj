@@ -12,40 +12,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install jq
-        run: sudo apt-get install jq
-
       - name: AI Reply (DeepSeek)
         run: |
-          RESPONSE=$(curl https://api.deepseek.com/v1/chat/completions \
-            -H "Authorization: Bearer ${{ secrets.DEEPSEEK_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "model": "deepseek-chat",
-              "messages": [
-                {
-                  "role": "system",
-                  "content": "你是一个专业的GitHub助手，回答简洁清晰。"
-                },
-                {
-                  "role": "user",
-                  "content": "${{ github.event.issue.title }}\n${{ github.event.issue.body }}"
-                }
+          # 1. 使用 jq 安全地构建发给 DeepSeek 的 JSON 请求体
+          # 这样可以防止 Issue 标题里包含双引号破坏 JSON 结构
+          PAYLOAD=$(jq -n \
+            --arg title "${{ github.event.issue.title }}" \
+            --arg body "${{ github.event.issue.body }}" \
+            '{
+              model: "deepseek-chat",
+              messages: [
+                {role: "system", content: "你是一个专业的GitHub助手，回答简洁清晰。"},
+                {role: "user", content: "标题: \($title)\n正文: \($body)"}
               ]
             }')
+
+          # 2. 发送请求给 DeepSeek
+          RESPONSE=$(curl -s https://api.deepseek.com/v1/chat/completions \
+            -H "Authorization: Bearer ${{ secrets.DEEPSEEK_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
 
           echo "==== RAW RESPONSE ===="
           echo "$RESPONSE"
           echo "======================"
 
-          COMMENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "AI无回复"')
+          # 3. 提取回复内容。如果提取不到，把原始报错信息展示出来
+          COMMENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "⚠️ API 报错，无法获取回复。原始返回：" + (. | tostring)')
 
-          echo "==== COMMENT ===="
-          echo "$COMMENT"
-          echo "================="
+          # 4. 使用 jq 安全地构建 GitHub 评论的 JSON
+          COMMENT_PAYLOAD=$(jq -n --arg body "$COMMENT" '{body: $body}')
 
-          curl -X POST \
+          # 5. 发送评论
+          curl -s -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github.v3+json" \
             -H "Content-Type: application/json" \
             https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments \
-            -d "{\"body\": \"$COMMENT\"}"
+            -d "$COMMENT_PAYLOAD"
